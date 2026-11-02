@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hot Wheels Garage</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#fff7ee;--card:#fff;--text:#1d1d1f;--mut:#6b6b70;--acc:#e8341c;--line:#ead9c6;--log:#14141a;--logt:#9df0b0;color-scheme:light}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#16161a;--card:#222228;--text:#f3f3f5;--mut:#a0a0a8;--acc:#ff5a3d;--line:#34343c;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#16161a;--card:#222228;--text:#f3f3f5;--mut:#a0a0a8;--acc:#ff5a3d;--line:#34343c;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px;max-width:640px;margin-inline:auto}
+h1{font-size:1.5rem;margin:8px 0 4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+button.ghost{background:transparent;color:var(--mut);border:1px solid var(--line);padding:6px 10px;font-weight:500;font-size:.85rem}
+input{font:inherit;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);width:90px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.big{font-size:2.4rem;font-weight:800;font-variant-numeric:tabular-nums}
+.mut{color:var(--mut);font-size:.85rem}
+.rank{font-weight:800;color:var(--acc);width:1.6em}
+.name{font-weight:700}
+.best{font-weight:800;font-variant-numeric:tabular-nums}
+.thumb{width:56px;height:56px;border-radius:10px;border:1px solid var(--line);background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;font-size:1.4rem}.thumb img{width:100%;height:100%;object-fit:cover}
+select{font:inherit;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+#log{background:var(--log);color:var(--logt);font:12px/1.5 ui-monospace,Menlo,monospace;border-radius:12px;padding:10px;height:220px;overflow:auto;white-space:pre-wrap;word-break:break-all;margin-top:8px}
+summary{color:var(--mut);cursor:pointer}
+</style>
+</head>
+<body>
+<h1>Hot Wheels Garage</h1>
+
+<div class="card">
+  <div>Portal: <b id="state">Not connected</b></div>
+  <div class="row"><button id="go">Connect to portal</button><button id="off" class="ghost">Disconnect</button></div>
+  <div class="row"><label class="mut"><input type="checkbox" id="ann" style="width:auto" checked> Voice announcer</label><button id="annt" class="ghost">Test voice</button></div>
+  <div class="mut" id="info" style="margin-top:8px">Use Chrome on Android with the portal on. Let go of the car before it reaches the portal.</div>
+</div>
+
+<div class="card">
+  <div class="mut">Last pass</div>
+  <img id="lastimg" alt="" style="display:none;width:100%;max-height:220px;object-fit:contain;border-radius:10px;margin:8px 0;background:var(--bg)">
+  <div class="big" id="spd">&ndash;</div>
+  <div class="mut" id="who">No car yet</div>
+  <div class="row"><button class="ghost" id="addpic">Add or change photo</button></div>
+</div>
+
+<div class="card" id="racers">
+  <div style="font-weight:700">Racer registration</div>
+  <div class="mut" style="margin-top:4px">Create a racer with or without a car. Racers without an assigned car cannot race until you assign one. Each car can only be assigned to one racer.</div>
+  <div class="row">
+    <input id="racerName" type="text" maxlength="24" placeholder="Racer name" style="width:min(100%,190px)">
+    <select id="racerCar" aria-label="Select an available car"><option value="">No car yet (assign later)</option></select>
+    <button id="addRacer">Add racer</button>
+  </div>
+  <div class="row">
+    <button id="scanCar" class="ghost" type="button">Scan a new car</button>
+    <button id="refreshCars" class="ghost" type="button">Refresh car list</button>
+  </div>
+  <div class="mut" id="racerScanHelp" style="margin-top:6px">To add a new car, connect the portal above and roll that car through it. It will appear in the car list automatically.</div>
+  <div id="racerList" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
+  <div style="font-weight:700">Leaderboard</div>
+  <div id="list"></div>
+  <div class="row">
+    <label class="mut"><input type="checkbox" id="sc" style="width:auto"> Show scale mph (×64)</label>
+  </div>
+  <div class="row">
+    <span class="mut">Speed adjust</span><input id="calf" type="number" step="0.05" min="0.1" value="1">
+    <button id="reset" class="ghost">Clear all cars</button>
+  </div>
+</div>
+
+<div class="card" id="tour"></div>
+
+<details class="card"><summary>Technical log</summary>
+  <div class="row"><button id="copy" class="ghost">Copy log</button></div>
+  <div id="log"></div>
+</details>
+
+<script>
+var SA='af0a6ec7-0001-000a-84a0-91559fc6f0de',SB='af0a6ec7-0001-000b-84a0-91559fc6f0de';
+var C_TX='af0a6ec7-0002-000a-84a0-91559fc6f0de',C_FAC='af0a6ec7-0003-000a-84a0-91559fc6f0de',C_SES='af0a6ec7-0004-000a-84a0-91559fc6f0de';
+var dev=null,localSalt=null,peerSalt=null,sessKey=null,buf=new Uint8Array(0),chain=Promise.resolve(),gotPkt=false,t0=Date.now();
+var cars=[],racers=[],mem={},curUid='',openH={},tour=null,sel={},tours=[],tnv=3,br=null,tfmt='avg',ser=null,bov=3;
+var logEl=document.getElementById('log');
+function log(s){logEl.textContent+='['+((Date.now()-t0)/1000).toFixed(1)+'] '+s+'\n';logEl.scrollTop=logEl.scrollHeight;}
+function state(s){document.getElementById('state').textContent=s;}
+function store(k,v){try{localStorage.setItem(k,v);}catch(e){mem[k]=v;}}
+function fetchv(k){try{var v=localStorage.getItem(k);return v===null?(mem[k]||null):v;}catch(e){return mem[k]||null;}}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function hex(u){return Array.from(u).map(function(b){return b.toString(16).padStart(2,'0');}).join(' ');}
+function hexc(u){return Array.from(u).map(function(b){return b.toString(16).padStart(2,'0').toUpperCase();}).join(':');}
+function asc(u){return Array.from(u).map(function(b){return(b>=32&&b<127)?String.fromCharCode(b):'.';}).join('');}
+function cat(){var n=0,i,a=arguments;for(i=0;i<a.length;i++)n+=a[i].length;var o=new Uint8Array(n),p=0;for(i=0;i<a.length;i++){o.set(a[i],p);p+=a[i].length;}return o;}
+function u8(dv){return new Uint8Array(dv.buffer,dv.byteOffset,dv.byteLength);}
+function crc8(u){var c=0xFF;for(var i=0;i<u.length;i++){c^=u[i];for(var k=0;k<8;k++)c=(c&0x80)?(((c<<1)^0x07)&0xFF):((c<<1)&0xFF);}return c;}
+
+var P=BigInt('0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff');
+var B=BigInt('0x5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b');
+function modpow(b,e,m){var r=1n;b%=m;while(e>0n){if(e&1n)r=r*b%m;b=b*b%m;e>>=1n;}return r;}
+function b2n(u){var n=0n;for(var i=0;i<u.length;i++)n=(n<<8n)|BigInt(u[i]);return n;}
+function n2b(n,len){var o=new Uint8Array(len);for(var i=len-1;i>=0;i--){o[i]=Number(n&0xFFn);n>>=8n;}return o;}
+function decompress(c){var x=b2n(c.slice(1)),rhs=(((x*x*x-3n*x+B)%P)+P)%P,y=modpow(rhs,(P+1n)/4n,P);if((y&1n)!==BigInt(c[0]&1))y=P-y;return cat(new Uint8Array([4]),n2b(x,32),n2b(y,32));}
+function compress(raw){return cat(new Uint8Array([(raw[64]&1)?3:2]),raw.slice(1,33));}
+async function kdf(shared){
+  var secret=shared.slice(0,32),iv=new Uint8Array(16);iv.set([0x6d,0x61,0x74,0x74,0x65,0x6c],9);
+  for(var r=0;r<100;r++){
+    var k=await crypto.subtle.importKey('raw',secret.slice(0,16),'AES-CTR',false,['encrypt']);
+    secret=new Uint8Array(await crypto.subtle.encrypt({name:'AES-CTR',counter:iv.slice(),length:128},k,secret.slice(0,32)));
+    var c=(((iv[4]<<24)|(iv[5]<<16)|(iv[6]<<8)|iv[7])+1)>>>0;
+    iv[4]=c>>>24;iv[5]=(c>>>16)&255;iv[6]=(c>>>8)&255;iv[7]=c&255;
+  }
+  return secret.slice(0,16);
+}
+function rv(b,i){var r=0n,s=0n,x;do{x=b[i++];r|=BigInt(x&0x7f)<<s;s+=7n;}while(x&0x80);return[r,i];}
+function pb(b){
+  var out=[],i=0;
+  while(i<b.length){
+    var tr=rv(b,i),t=tr[0],v;i=tr[1];
+    var f=Number(t>>3n),w=Number(t&7n);
+    if(w===0){var a=rv(b,i);v=a[0];i=a[1];}
+    else if(w===1){v=b.slice(i,i+8);i+=8;}
+    else if(w===2){var q=rv(b,i),l=Number(q[0]);i=q[1];v=b.slice(i,i+l);i+=l;}
+    else if(w===5){v=b.slice(i,i+4);i+=4;}
+    else throw new Error('bad wire type '+w);
+    out.push({f:f,v:v});
+  }
+  return out;
+}
+function get(m,f){for(var i=0;i<m.length;i++)if(m[i].f===f)return m[i].v;return null;}
+function f32(u){return new DataView(u.buffer,u.byteOffset,4).getFloat32(0,true);}
+
+/* ---------- announcer ---------- */
+var extraSay='',leadSay='',lead={cur:null,seen:{}};
+function speak(t){
+  if(!document.getElementById('ann').checked||!window.speechSynthesis)return;
+  try{speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.rate=1.05;speechSynthesis.speak(u);}catch(e){}
+}
+function spokenT(m){
+  if(!/wins|tie/.test(m))return '';
+  return m.replace(/^\s*·\s*/,'').replace(/ · /g,'. ').replace(/(\d)–(\d)/g,'$1 to $2');
+}
+/* ---------- live race commentary ---------- */
+function leadReset(){lead={cur:null,seen:{}};}
+function leadChange(list){
+  if(!list.length)return null;
+  list=list.slice().sort(function(a,b){return b.val-a.val;});
+  if(list.length>1&&Math.abs(list[0].val-list[1].val)<1e-9){lead.cur=null;return null;}
+  var L=list[0];
+  if(lead.cur===L.uid)return null;
+  var kind=list.length===1?'pace':(lead.seen[L.uid]?'comeback':'take');
+  lead.cur=L.uid;lead.seen[L.uid]=true;
+  return {kind:kind,uid:L.uid,mph:L.mph};
+}
+function spokenSpeed(mph){var mv=mph*calf();return showScale()?Math.round(mv*64)+' scale miles per hour':mv.toFixed(2)+' miles per hour';}
+function leadText(lc,pre,ctx){
+  var n=cname(lc.uid),sp=spokenSpeed(lc.mph),w=pre?pre+' '+sp:sp;
+  if(lc.kind==='pace')return n+' sets the pace at '+sp+'.';
+  if(lc.kind==='comeback')return 'Oh! '+n+' makes a comeback and takes the lead'+ctx+' with '+w+'!';
+  return n+' takes the lead'+ctx+' with '+w+'!';
+}
+/* ---------- garage ---------- */
+function loadCars(){
+  try{cars=JSON.parse(fetchv('hwg2')||'[]');}catch(e){cars=[];}
+  cars.forEach(function(c){if(typeof c.playerName!=='string')c.playerName='';});
+  try{racers=JSON.parse(fetchv('hwg_accounts')||'null');}catch(e){racers=null;}
+  if(!Array.isArray(racers)){racers=[];cars.forEach(function(c){if(c.playerName)racers.push({id:'r'+Math.random().toString(36).slice(2),name:c.playerName,carUid:c.uid});});saveRacers();}
+  racers.forEach(function(r){if(typeof r.carUid!=='string')r.carUid='';});
+  cars.forEach(function(c){c.playerName='';});
+  racers.forEach(function(r){var c=findCar(r.carUid);if(c)c.playerName=r.name;else r.carUid='';});
+}
+function saveCars(){store('hwg2',JSON.stringify(cars));}
+function saveRacers(){store('hwg_accounts',JSON.stringify(racers));}
+function calf(){var v=parseFloat(document.getElementById('calf').value);return v>0?v:1;}
+function showScale(){return document.getElementById('sc').checked;}
+function fmtSpeed(mph){return showScale()?(mph*64).toFixed(0):mph.toFixed(2);}
+function unit(){return showScale()?'scale mph':'mph';}
+function findCar(uid){for(var i=0;i<cars.length;i++)if(cars[i].uid===uid)return cars[i];return null;}
+function ensureCar(uid,cid){
+  var c=findCar(uid);
+  if(!c){c={uid:uid,cid:cid||'',name:cid?'Car '+(cars.length+1):'Other',playerName:'',best:0,runs:0,last:0,passes:[]};cars.push(c);saveCars();render();log('New car added: '+c.name+' ('+uid+')');}
+  return c;
+}
+function onPass(uid,cid,raw){
+  var c=ensureCar(uid,cid);
+  if(!(raw>0))return;
+  var mph=raw;
+  var prev=c.best,gmax=0;cars.forEach(function(q){if(q.best>gmax)gmax=q.best;});
+  c.runs++;c.last=mph;if(mph>c.best)c.best=mph;
+  c.passes.push({t:Date.now(),v:mph});if(c.passes.length>30)c.passes.shift();
+  saveCars();
+  var tmsg=tourPass(uid,mph);
+  document.getElementById('spd').textContent=fmtSpeed(mph*calf())+' '+unit();
+  document.getElementById('who').textContent=(c.playerName?c.playerName+' · '+c.name:c.name)+(mph>=c.best?' · new best!':'')+tmsg;
+  curUid=uid;setImg(c);
+  var racerLabel=c.playerName?c.playerName+' driving '+c.name:c.name;
+  var mv=mph*calf(),sp=showScale()?Math.round(mv*64)+' scale miles per hour':mv.toFixed(2)+' miles per hour',ph=racerLabel+', '+sp+'.';
+  if(gmax>0&&mph>gmax)ph+=' New garage record!';else if(prev>0&&mph>prev)ph+=' Personal best!';
+  var sx=spokenT(tmsg);if(sx)ph+=' '+sx+'.';
+  if(leadSay){ph+=' '+leadSay;document.getElementById('who').textContent+=' · '+leadSay;leadSay='';}
+  if(extraSay){ph+=' '+extraSay;extraSay='';}
+  speak(ph);
+  render();
+}
+function hist(uid){openH[uid]=!openH[uid];render();}
+function addRacer(){
+  var name=document.getElementById('racerName').value.trim();
+  var uid=document.getElementById('racerCar').value;
+  if(!name){alert('Enter a racer name.');return;}
+  var c=uid?findCar(uid):null;
+  if(uid&&!c){alert('That car is no longer in the garage.');renderRacers();return;}
+  if(c&&c.playerName){alert('That car already has a racer.');return;}
+  var account={id:'r'+Date.now()+Math.random().toString(36).slice(2,7),name:name,carUid:uid||''};
+  racers.push(account);if(c)c.playerName=name;saveRacers();saveCars();
+  document.getElementById('racerName').value='';render();log(c?'Racer account '+name+' created and assigned to '+c.name:'Racer account '+name+' created without a car; assign a car before racing.');
+}
+function withdrawCar(id){
+  var r=racers.find(function(x){return x.id===id;});if(!r)return;
+  var c=r.carUid&&findCar(r.carUid);if(c)c.playerName='';r.carUid='';saveRacers();saveCars();render();log('Car withdrawn from racer '+r.name+'; account kept');
+}
+function withdrawAccount(id){
+  var i=racers.findIndex(function(x){return x.id===id;});if(i<0)return;
+  var r=racers[i];if(!confirm('Withdraw the account for '+r.name+'? The racer account will be removed, but the car will stay in your garage.'))return;
+  var c=r.carUid&&findCar(r.carUid);if(c)c.playerName='';racers.splice(i,1);saveRacers();saveCars();render();log('Racer account withdrawn: '+r.name);
+}
+function switchCar(id){
+  var r=racers.find(function(x){return x.id===id;});if(!r)return;
+  var el=document.getElementById('switch-'+id),uid=el&&el.value;
+  if(!uid){alert('Choose a different car first.');return;}
+  var next=findCar(uid);if(!next||next.playerName){alert('That car is not available. Refresh and try again.');renderRacers();return;}
+  var old=r.carUid&&findCar(r.carUid);if(old)old.playerName='';next.playerName=r.name;r.carUid=uid;saveRacers();saveCars();render();log(r.name+' switched to '+next.name);
+}
+function renderRacers(){
+  var selEl=document.getElementById('racerCar'),list=document.getElementById('racerList');
+  if(!selEl||!list)return;
+  var prior=selEl.value,available=cars.filter(function(c){return !c.playerName;});
+  selEl.innerHTML='<option value="">No car yet (assign later)</option>'+available.map(function(c){return '<option value="'+esc(c.uid)+'">'+esc(c.name)+'</option>';}).join('');
+  if(available.some(function(c){return c.uid===prior;}))selEl.value=prior;
+  list.innerHTML=racers.length?racers.map(function(r){
+    var c=r.carUid&&findCar(r.carUid),options=available.map(function(x){return '<option value="'+esc(x.uid)+'">'+esc(x.name)+'</option>';}).join('');
+    var carText=c?'Driving '+esc(c.name):'No car assigned · Not eligible to race until a car is assigned';
+    var switcher=available.length?'<div class="row" style="margin-top:6px"><select id="switch-'+esc(r.id)+'" aria-label="Choose a car for '+esc(r.name)+'"><option value="">Switch to another car…</option>'+options+'</select><button class="ghost" onclick="switchCar(this.dataset.rid)" data-rid="'+esc(r.id)+'">Switch car</button></div>':'';
+    var withdraw=c?'<button class="ghost" onclick="withdrawCar(this.dataset.rid)" data-rid="'+esc(r.id)+'">Withdraw car</button>':'';
+    return '<div style="border-top:1px solid var(--line);padding:8px 0"><div class="row" style="margin-top:0"><div style="flex:1;min-width:0"><b>'+esc(r.name)+'</b><div class="mut">'+carText+'</div></div>'+withdraw+'<button class="ghost" onclick="withdrawAccount(this.dataset.rid)" data-rid="'+esc(r.id)+'">Withdraw account</button></div>'+switcher+'</div>';
+  }).join(''):'<div class="mut">No racers registered yet. You can create a racer now and assign a car later.</div>';
+  document.getElementById('addRacer').disabled=false;
+}
+function fdate(t){return new Date(t).toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
+function render(){
+  var out=document.getElementById('list');
+  if(!cars.length){out.innerHTML='<div class="mut" style="margin-top:8px">No cars yet. Connect and roll a car through the portal.</div>';renderRacers();renderTour();return;}
+  var k=calf(),sorted=cars.slice().sort(function(a,b){return b.best-a.best;});
+  out.innerHTML=sorted.map(function(c,i){
+    var h='';
+    if(openH[c.uid]){
+      h='<div class="mut" style="padding:6px 0 2px 4px">'+(c.passes.length?c.passes.slice().reverse().map(function(p){return fdate(p.t)+' · '+fmtSpeed(p.v*k)+' '+unit();}).join('<br>'):'No runs yet')+'</div>';
+    }
+    return '<div style="border-top:1px solid var(--line);padding-top:8px;margin-top:8px"><div class="row" style="margin-top:0"><span class="rank">'+(i+1)+'</span>'+
+    '<div class="thumb" onclick="pic(\''+c.uid+'\')">'+(c.img?'<img src="'+c.img+'" alt="">':'&#128247;')+'</div>'+
+    '<div style="flex:1;min-width:120px"><div class="name">'+esc(c.playerName||c.name)+'</div><div class="mut">'+(c.playerName?'Driving '+esc(c.name)+' · ':'')+c.runs+' runs · last '+(c.last?fmtSpeed(c.last*k):'–')+'</div></div>'+
+    '<div class="best">'+(c.best?fmtSpeed(c.best*k):'–')+'<span class="mut"> '+unit()+'</span></div></div>'+
+    '<div class="row"><button class="ghost" onclick="hist(\''+c.uid+'\')">'+(openH[c.uid]?'Hide runs':'Past runs')+'</button>'+
+    '<button class="ghost" onclick="ren(\''+c.uid+'\')">Rename</button><button class="ghost" onclick="del(\''+c.uid+'\')">Remove</button></div>'+h+'</div>';
+  }).join('');
+  renderRacers();renderTour();
+}
+/* ---------- tournament ---------- */
+function loadTours(){try{tours=JSON.parse(fetchv('hwt2')||'[]');}catch(e){tours=[];}}
+function saveTours(){store('hwt2',JSON.stringify(tours));}
+function cname(uid){var c=findCar(uid);return c?(c.playerName||c.name):'(removed car)';}
+function tstats(a){var s=0,b=0;a.forEach(function(v){s+=v;if(v>b)b=v;});return{avg:a.length?s/a.length:0,best:b};}
+function tresults(t){return t.ids.map(function(u){var q=tstats(t.runs[u]);return{uid:u,name:cname(u),avg:q.avg,best:q.best,n:t.runs[u].length};}).sort(function(a,b){return b.avg-a.avg||b.best-a.best;});}
+function finishTour(){
+  tour.done=true;
+  var r=tresults(tour);
+  extraSay='Tournament over. Winner: '+r[0].name+'.';
+  tours.unshift({t:Date.now(),need:tour.need,res:r.map(function(x){return{name:x.name,avg:x.avg,best:x.best,n:x.n};})});
+  tours=tours.slice(0,10);saveTours();
+}
+function tourPass(uid,mph){
+  if(br&&!br.done)return brPass(uid,mph);
+  if(ser&&!ser.done)return serPass(uid,mph);
+  if(!tour||tour.done||tour.ids.indexOf(uid)<0)return '';
+  var r=tour.runs[uid];
+  if(r.length>=tour.need)return ' · already did its tournament runs';
+  r.push(mph);
+  var all=tour.ids.every(function(u){return tour.runs[u].length>=tour.need;});
+  if(all)finishTour();
+  else{
+    var lst=[];
+    tour.ids.forEach(function(u){if(tour.runs[u].length){var av=tstats(tour.runs[u]).avg;lst.push({uid:u,val:av,mph:av});}});
+    var lc=leadChange(lst);
+    if(lc)leadSay=leadText(lc,'an average of','');
+  }
+  return ' · tournament run '+r.length+'/'+tour.need;
+}
+function startTour(){
+  br=null;ser=null;leadReset();
+  var ids=cars.filter(function(c){return sel[c.uid]!==false;}).map(function(c){return c.uid;});
+  if(ids.length<2){alert('Choose at least two cars.');return;}
+  tour={ids:ids,need:tnv,runs:{},done:false};
+  ids.forEach(function(u){tour.runs[u]=[];});
+  renderTour();
+}
+function endTour(){var any=tour.ids.some(function(u){return tour.runs[u].length>0;});if(any)finishTour();else tour=null;renderTour();}
+function cancelTour(){tour=null;renderTour();}
+/* ---------- best-of series ---------- */
+function startSer(){
+  var ids=cars.filter(function(c){return sel[c.uid]!==false;}).map(function(c){return c.uid;});
+  if(ids.length!==2){alert('Choose exactly two cars for a series.');return;}
+  tour=null;br=null;leadReset();
+  ser={a:ids[0],b:ids[1],n:bov,need:Math.ceil(bov/2),games:[],cur:{a:null,b:null},wa:0,wb:0,done:false,champ:null};
+  renderTour();
+}
+function serPass(uid,mph){
+  var sd=uid===ser.a?'a':(uid===ser.b?'b':null);
+  if(!sd)return ' · not in the series';
+  if(ser.cur[sd]!==null)return ' · already rolled this game';
+  ser.cur[sd]=mph;
+  if(ser.cur.a===null||ser.cur.b===null)return ' · game '+(ser.games.length+1)+': waiting for the other car';
+  var x=ser.cur.a,y=ser.cur.b;ser.cur={a:null,b:null};
+  if(Math.abs(x-y)<1e-9)return ' · tie! roll this game again';
+  var wa=x>y;
+  ser.games.push({a:x,b:y,w:wa?'a':'b'});
+  if(wa)ser.wa++;else ser.wb++;
+  if(ser.wa>=ser.need||ser.wb>=ser.need){
+    ser.done=true;ser.champ=wa?ser.a:ser.b;
+    var hi=Math.max(ser.wa,ser.wb),lo=Math.min(ser.wa,ser.wb);
+    tours.unshift({t:Date.now(),kind:'series',champ:cname(ser.champ),other:cname(wa?ser.b:ser.a),score:hi+'–'+lo});
+    tours=tours.slice(0,10);saveTours();
+    return ' · '+cname(ser.champ)+' wins the series '+hi+'–'+lo;
+  }
+  var lc2=leadChange([{uid:ser.a,val:ser.wa},{uid:ser.b,val:ser.wb}]);
+  if(lc2){
+    var hi2=Math.max(ser.wa,ser.wb),lo2=Math.min(ser.wa,ser.wb),n2=cname(lc2.uid);
+    leadSay=(lc2.kind==='comeback'?'Oh! '+n2+' makes a comeback and takes':n2+' takes')+' the series lead, '+hi2+' to '+lo2+'!';
+  }
+  return ' · '+cname(wa?ser.a:ser.b)+' wins game '+ser.games.length;
+}
+function serHtml(k){
+  var h='',A=esc(cname(ser.a)),Bn=esc(cname(ser.b));
+  if(ser.done)h+='<div style="margin:8px 0;font-weight:800;color:var(--acc)">Series winner: '+esc(cname(ser.champ))+' &#127942;</div>';
+  else h+='<div class="mut" style="margin:8px 0">Best of '+ser.n+' (first to '+ser.need+' wins). Game '+(ser.games.length+1)+': roll both cars. The faster car wins the game.'+(ser.cur.a!==null?' '+A+' has rolled.':'')+(ser.cur.b!==null?' '+Bn+' has rolled.':'')+'</div>';
+  h+='<div class="row" style="justify-content:center"><span class="name">'+A+'</span><span class="big">'+ser.wa+' – '+ser.wb+'</span><span class="name">'+Bn+'</span></div>';
+  ser.games.forEach(function(g,i){h+='<div class="mut" style="margin-top:6px">Game '+(i+1)+': '+A+' '+fmtSpeed(g.a*k)+' vs '+Bn+' '+fmtSpeed(g.b*k)+' '+unit()+' → <b>'+(g.w==='a'?A:Bn)+'</b></div>';});
+  h+='<div class="row">'+(ser.done?'<button onclick="ser=null;renderTour()">New tournament</button>':'<button class="ghost" onclick="ser=null;renderTour()">Cancel</button>')+'</div>';
+  return h;
+}
+/* ---------- bracket ---------- */
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+function startAny(){if(tfmt==='bo')startSer();else if(tfmt==='br')startBr();else startTour();}
+function startBr(){
+  var ids=cars.filter(function(c){return sel[c.uid]!==false;}).map(function(c){return c.uid;});
+  if(ids.length<2){alert('Choose at least two cars.');return;}
+  tour=null;ser=null;leadReset();ids=shuffle(ids);
+  var size=2;while(size<ids.length)size*=2;
+  var half=size/2,slots=[],i,m;
+  for(i=0;i<size;i++)slots.push(null);
+  for(i=0;i<half;i++)slots[2*i]=ids[i];
+  var k2=1;for(i=half;i<ids.length;i++){slots[k2]=ids[i];k2+=2;}
+  var rounds=[],first=[];
+  for(m=0;m<half;m++)first.push({a:slots[2*m],b:slots[2*m+1],ra:[],rb:[],w:null,bye:!slots[2*m+1]});
+  rounds.push(first);
+  var cnt=half/2;
+  while(cnt>=1){var rr=[];for(m=0;m<cnt;m++)rr.push({a:null,b:null,ra:[],rb:[],w:null,bye:false});rounds.push(rr);cnt=Math.floor(cnt/2);}
+  br={rounds:rounds,need:tnv,done:false,champ:null,n:ids.length};
+  for(m=0;m<first.length;m++)if(first[m].bye)setWin(0,m,first[m].a);
+  renderTour();
+}
+function setWin(r,m,uid){
+  leadReset();
+  var rd=br.rounds;rd[r][m].w=uid;
+  if(r===rd.length-1){
+    br.done=true;br.champ=uid;extraSay='Bracket champion: '+cname(uid)+'.';
+    tours.unshift({t:Date.now(),kind:'bracket',champ:cname(uid),n:br.n});
+    tours=tours.slice(0,10);saveTours();
+  }else{
+    var nm=rd[r+1][m>>1];
+    if(m%2===0)nm.a=uid;else nm.b=uid;
+  }
+}
+function activeM(){
+  for(var r=0;r<br.rounds.length;r++)for(var m=0;m<br.rounds[r].length;m++){
+    var x=br.rounds[r][m];if(!x.w&&x.a&&x.b)return{r:r,m:m,x:x};
+  }
+  return null;
+}
+function brPass(uid,mph){
+  var am=activeM();if(!am)return '';
+  var x=am.x,sd=uid===x.a?'ra':(uid===x.b?'rb':null);
+  if(!sd)return ' · not in the current match';
+  if(x[sd].length>=br.need)return ' · already did its runs this match';
+  x[sd].push(mph);
+  if(x.ra.length>=br.need&&x.rb.length>=br.need){
+    var sa=tstats(x.ra).avg,sb=tstats(x.rb).avg;
+    if(Math.abs(sa-sb)<1e-9){x.ra=[];x.rb=[];return ' · tie! run this match again';}
+    var wu=sa>sb?x.a:x.b;
+    setWin(am.r,am.m,wu);
+    return ' · '+cname(wu)+' wins the match';
+  }
+  var lb=[];
+  if(x.ra.length){var qa=tstats(x.ra).avg;lb.push({uid:x.a,val:qa,mph:qa});}
+  if(x.rb.length){var qb=tstats(x.rb).avg;lb.push({uid:x.b,val:qb,mph:qb});}
+  var lcb=leadChange(lb);
+  if(lcb)leadSay=leadText(lcb,'an average of',' in the match');
+  return ' · match run '+x[sd].length+'/'+br.need;
+}
+function rname(r){var R=br.rounds.length;return r===R-1?'Final':(r===R-2?'Semifinals':'Round '+(r+1));}
+function brSide(x,s,rs,k){
+  var u=x[s],runs=x[rs];
+  if(!u)return '<div class="mut">'+(x.bye?'Bye':'To be decided')+'</div>';
+  var isW=x.w&&x.w===u,nm=esc(cname(u))+(isW?' &#10003;':'');
+  if(x.bye)return '<div class="row" style="margin-top:2px"><div style="flex:1;font-weight:800">'+nm+'</div><div class="mut">bye</div></div>';
+  var sp=runs.length?fmtSpeed(tstats(runs).avg*k)+' '+unit():'–';
+  return '<div class="row" style="margin-top:2px"><div style="flex:1;font-weight:'+(isW?800:500)+'">'+nm+'</div><div class="mut">'+runs.length+'/'+br.need+' · '+sp+'</div></div>';
+}
+function brHtml(k){
+  var h='',am=activeM();
+  if(br.done)h+='<div style="margin:8px 0;font-weight:800;color:var(--acc)">Champion: '+esc(cname(br.champ))+' &#127942;</div>';
+  else if(am)h+='<div class="mut" style="margin:8px 0">Now: <b>'+esc(cname(am.x.a))+'</b> vs <b>'+esc(cname(am.x.b))+'</b>. Each car rolls '+br.need+' time'+(br.need>1?'s':'')+'. The faster average wins.</div>';
+  br.rounds.forEach(function(rd,r){
+    h+='<div class="mut" style="margin-top:10px;font-weight:700">'+rname(r)+'</div>';
+    rd.forEach(function(x,m){
+      var act=am&&am.r===r&&am.m===m;
+      h+='<div style="border:1px solid '+(act?'var(--acc)':'var(--line)')+';border-radius:10px;padding:8px;margin-top:6px">'+brSide(x,'a','ra',k)+brSide(x,'b','rb',k)+'</div>';
+    });
+  });
+  h+='<div class="row">'+(br.done?'<button onclick="br=null;renderTour()">New tournament</button>':'<button class="ghost" onclick="br=null;renderTour()">Cancel</button>')+'</div>';
+  return h;
+}
+function renderTour(){
+  var el=document.getElementById('tour');if(!el)return;
+  var k=calf(),h='<div style="font-weight:700">Tournament</div>';
+  if(ser){h+=serHtml(k);}
+  else if(br){h+=brHtml(k);}
+  else if(!tour){
+    if(cars.length<2){h+='<div class="mut" style="margin-top:8px">Add at least two cars to the garage to run a tournament.</div>';}
+    else{
+      h+='<div class="mut" style="margin:8px 0 4px">Choose the cars to enter:</div>';
+      cars.forEach(function(c){h+='<label class="row" style="margin-top:4px"><input type="checkbox" style="width:auto" '+(sel[c.uid]!==false?'checked ':'')+'onchange="sel[\''+c.uid+'\']=this.checked"> '+esc(c.name)+'</label>';});
+      h+='<div class="row"><span class="mut">Format</span><select onchange="tfmt=this.value;renderTour()"><option value="avg"'+(tfmt==='avg'?' selected':'')+'>Average speed</option><option value="br"'+(tfmt==='br'?' selected':'')+'>Bracket (head to head)</option><option value="bo"'+(tfmt==='bo'?' selected':'')+'>Best-of series (2 cars)</option></select></div><div class="row">'+(tfmt==='bo'?'<span class="mut">Best of</span><select onchange="bov=parseInt(this.value)">'+[3,5,7].map(function(n){return '<option'+(n===bov?' selected':'')+'>'+n+'</option>';}).join('')+'</select>':'<span class="mut">'+(tfmt==='br'?'Runs per match':'Runs per car')+'</span><select onchange="tnv=parseInt(this.value)">'+[1,2,3,4,5].map(function(n){return '<option'+(n===tnv?' selected':'')+'>'+n+'</option>';}).join('')+'</select>')+'<button onclick="startAny()">'+(tfmt==='bo'?'Start series':(tfmt==='br'?'Start bracket':'Start tournament'))+'</button></div>';
+    }
+  }else{
+    var r=tresults(tour);
+    if(!tour.done)h+='<div class="mut" style="margin:8px 0">Roll each entered car through the portal. Each car gets '+tour.need+' run'+(tour.need>1?'s':'')+'. The score is its average speed.</div>';
+    else h+='<div style="margin:8px 0;font-weight:800;color:var(--acc)">Winner: '+esc(r[0].name)+' &#127942;</div>';
+    r.forEach(function(x,i){
+      h+='<div class="row" style="border-top:1px solid var(--line);padding-top:6px"><span class="rank">'+(i+1)+'</span><div style="flex:1"><div class="name">'+esc(x.name)+'</div><div class="mut">'+x.n+'/'+tour.need+' runs · best '+(x.n?fmtSpeed(x.best*k):'–')+'</div></div><div class="best">'+(x.n?fmtSpeed(x.avg*k):'–')+'<span class="mut"> avg '+unit()+'</span></div></div>';
+    });
+    h+='<div class="row">'+(tour.done?'<button onclick="tour=null;renderTour()">New tournament</button>':'<button class="ghost" onclick="endTour()">End now</button><button class="ghost" onclick="cancelTour()">Cancel</button>')+'</div>';
+  }
+  if(tours.length){
+    h+='<div class="mut" style="margin-top:14px">Past tournaments</div>';
+    tours.forEach(function(t){
+      if(t.kind==='series')h+='<div class="mut" style="margin-top:4px">'+fdate(t.t)+' · Series winner <b>'+esc(t.champ)+'</b> '+t.score+' vs '+esc(t.other)+'</div>';
+      else if(t.kind==='bracket')h+='<div class="mut" style="margin-top:4px">'+fdate(t.t)+' · Bracket champion <b>'+esc(t.champ)+'</b> · '+t.n+' cars</div>';
+      else h+='<div class="mut" style="margin-top:4px">'+fdate(t.t)+' · Winner <b>'+esc(t.res[0].name)+'</b> ('+fmtSpeed(t.res[0].avg*k)+' '+unit()+' avg) · '+t.res.length+' cars</div>';
+    });
+  }
+  el.innerHTML=h;
+}
+function ren(uid){var c=findCar(uid),n=prompt('Name this car',c.name);if(n){c.name=n;saveCars();render();}}
+function del(uid){if(!confirm('Remove this car?'))return;cars=cars.filter(function(c){return c.uid!==uid;});saveCars();render();}
+
+function setImg(c){var el=document.getElementById('lastimg');if(c&&c.img){el.src=c.img;el.style.display='block';}else{el.style.display='none';}}
+function pic(uid){
+  var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=function(){
+    var f=inp.files&&inp.files[0];if(!f)return;
+    var r=new FileReader();
+    r.onload=function(){
+      var im=new Image();
+      im.onload=function(){
+        var s=Math.min(1,320/Math.max(im.width,im.height)),cv=document.createElement('canvas');
+        cv.width=Math.round(im.width*s);cv.height=Math.round(im.height*s);
+        cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+        var c=findCar(uid);
+        if(c){c.img=cv.toDataURL('image/jpeg',0.75);saveCars();render();if(uid===curUid)setImg(c);}
+      };
+      im.src=r.result;
+    };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+document.getElementById('addRacer').onclick=addRacer;
+document.getElementById('scanCar').onclick=function(){
+  document.getElementById('go').scrollIntoView({behavior:'smooth',block:'center'});
+  document.getElementById('racerScanHelp').textContent='Tap “Connect to portal” above, then roll the new car through the portal. It will be added to the car list automatically.';
+};
+document.getElementById('refreshCars').onclick=function(){renderRacers();};
+document.getElementById('addpic').onclick=function(){if(curUid)pic(curUid);else alert('Roll a car through the portal first.');};
+/* ---------- portal events ---------- */
+function dEvent(b){
+  var ev=pb(b),ty=get(ev,1),t=ty===null?0:Number(ty),car=get(ev,2),sp=get(ev,3),uid='',cid='';
+  if(car){var ci=pb(car),u=get(ci,1),nd=get(ci,3);if(u)uid=hexc(u.slice(1));if(nd){var tx=asc(nd),k=tx.indexOf('pid.mattel/');cid=k>=0?tx.slice(k+11):'';}}
+  if(t===2&&uid){ensureCar(uid,cid);document.getElementById('who').textContent='On portal: '+(findCar(uid).playerName?findCar(uid).playerName+' · '+findCar(uid).name:findCar(uid).name);curUid=uid;setImg(findCar(uid));speak(findCar(uid).name+' is on the portal.');}
+  if(t===4&&uid){
+    var sm=sp?pb(sp):[],raw=get(sm,2),spd=raw?f32(raw):0;
+    log('Pass '+uid+' raw '+spd.toFixed(3));
+    onPass(uid,cid,spd);
+  }
+  return 'event '+t+(uid?' '+uid:'');
+}
+function dInfo(b){
+  var m=pb(b),bl=get(m,3),v=get(m,10),p=[];
+  if(v)p.push('firmware '+asc(v));
+  if(bl)p.push('battery '+Math.round(f32(bl)*100)+'%');
+  document.getElementById('info').textContent='Portal: '+(p.join(', ')||'ok');
+  return 'info';
+}
+function describe(p){
+  var m=pb(p),o=[];
+  m.forEach(function(x){
+    if(x.f===2&&x.v.length!==undefined)o.push(dEvent(x.v));
+    else if(x.f===3&&x.v.length!==undefined)o.push(dInfo(x.v));
+  });
+  return o.join(' | ')||'(unknown)';
+}
+async function handle(counter,body){
+  var iv=new Uint8Array(16);iv.set(counter,0);iv.set(peerSalt,4);iv.set(localSalt,8);
+  var plain=new Uint8Array(await crypto.subtle.decrypt({name:'AES-CTR',counter:iv,length:128},sessKey,body));
+  var pay=plain.slice(0,plain.length-1);
+  if(!gotPkt){gotPkt=true;state('Connected and secure');}
+  if(crc8(pay)!==plain[plain.length-1])log('CRC mismatch: '+hex(plain));
+  try{describe(pay);}catch(e){log('Decode error: '+e.message+' | '+hex(pay));}
+}
+function pump(){
+  for(;;){
+    var s=buf.indexOf(0x7e);
+    if(s<0){buf=new Uint8Array(0);return;}
+    if(s>0)buf=buf.slice(s);
+    if(buf.length<8)return;
+    if(crc8(buf.slice(0,7))!==buf[7]){buf=buf.slice(1);continue;}
+    var len=(buf[5]<<8)|buf[6];
+    if(buf.length<8+len)return;
+    var ctr=buf.slice(1,5),body=buf.slice(8,8+len);
+    buf=buf.slice(8+len);
+    if(len>0)(function(c,b){chain=chain.then(function(){return handle(c,b);}).catch(function(e){log('Packet error: '+e.message);});})(ctr,body);
+  }
+}
+
+document.getElementById('go').onclick=async function(){
+  try{
+    if(!navigator.bluetooth){state('Needs Chrome on Android');return;}
+    if(!(window.crypto&&crypto.subtle)){log('Encryption not available. Open this as a downloaded file in Chrome.');return;}
+    gotPkt=false;buf=new Uint8Array(0);state('Choosing device…');
+    dev=await navigator.bluetooth.requestDevice({acceptAllDevices:true,optionalServices:[SA,SB]});
+    dev.addEventListener('gattserverdisconnected',function(){state('Disconnected');log('Disconnected');});
+    state('Connecting…');
+    var server=await dev.gatt.connect(),svc=await server.getPrimaryService(SA);
+    var tx=await svc.getCharacteristic(C_TX),fac=await svc.getCharacteristic(C_FAC),ses=await svc.getCharacteristic(C_SES);
+    tx.addEventListener('characteristicvaluechanged',function(e){buf=cat(buf,u8(e.target.value));pump();});
+    await tx.startNotifications();await ses.startNotifications();
+    var tok=u8(await fac.readValue());
+    if(tok.length<136||tok[0]!==1){log('Unexpected token format.');state('Stopped');return;}
+    peerSalt=tok.slice(132,136);localSalt=crypto.getRandomValues(new Uint8Array(4));
+    state('Securing…');
+    var kp=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},true,['deriveBits']);
+    var myRaw=new Uint8Array(await crypto.subtle.exportKey('raw',kp.publicKey));
+    var devKey=await crypto.subtle.importKey('raw',decompress(tok.slice(25,58)),{name:'ECDH',namedCurve:'P-256'},false,[]);
+    var shared=new Uint8Array(await crypto.subtle.deriveBits({name:'ECDH',public:devKey},kp.privateKey,256));
+    sessKey=await crypto.subtle.importKey('raw',await kdf(shared),'AES-CTR',false,['encrypt','decrypt']);
+    var msg=cat(compress(myRaw),localSalt);
+    if(ses.writeValueWithResponse)await ses.writeValueWithResponse(msg);else await ses.writeValue(msg);
+    state('Waiting for portal…');
+    setTimeout(function(){if(!gotPkt)log('Nothing received yet. Check the technical log.');},12000);
+  }catch(err){state('Error: '+err.message);log('Error: '+err.name+': '+err.message);}
+};
+document.getElementById('off').onclick=function(){if(dev&&dev.gatt.connected)dev.gatt.disconnect();};
+document.getElementById('ann').onchange=function(){store('hwann',this.checked?'1':'0');if(!this.checked&&window.speechSynthesis)speechSynthesis.cancel();};
+document.getElementById('annt').onclick=function(){speak('Announcer ready. Let the race begin!');};
+document.getElementById('sc').onchange=function(){store('hwscale',this.checked?'1':'0');render();};
+document.getElementById('calf').onchange=function(){store('hwcal',String(calf()));render();};
+document.getElementById('reset').onclick=function(){if(confirm('Clear every car, racer account, and all times?')){cars=[];racers=[];saveRacers();saveCars();render();}};
+document.getElementById('copy').onclick=async function(){
+  var t=logEl.textContent;
+  try{await navigator.clipboard.writeText(t);}catch(e){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e2){}document.body.removeChild(ta);}
+};
+loadCars();saveCars();loadTours();
+document.getElementById('sc').checked=fetchv('hwscale')==='1';
+document.getElementById('ann').checked=fetchv('hwann')!=='0';
+if(fetchv('hwcal'))document.getElementById('calf').value=fetchv('hwcal');
+render();
+</script>
+</body>
+</html>
